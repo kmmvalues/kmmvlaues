@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>실시간 거래 게시판</title>
+<link rel="stylesheet" as="style" crossorigin
+  href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" />
+<style>
+  :root{
+    --bg:#000000;
+    --card-bg:#121212;
+    --title-color:#ffffff;
+    --body-color:#8a8a8a;
+    --accent:#007AFF;
+    --pill-gray:#2c2c2e;
+    --pill-gray-active:#4a4a4d;
+    --border:#232323;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:var(--bg);
+    font-family:'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+    color:var(--title-color);
+  }
+  #app{
+    max-width:390px;
+    margin:0 auto;
+    height:100dvh;
+    display:flex;
+    flex-direction:column;
+    position:relative;
+  }
+  header{
+    padding:20px 20px 12px;
+    flex-shrink:0;
+  }
+  header h1{
+    font-size:19px;
+    font-weight:700;
+    margin:0;
+    color:#fff;
+  }
+  header p{
+    margin:4px 0 0;
+    font-size:12.5px;
+    color:#666;
+  }
+  #feed{
+    flex:1;
+    overflow-y:auto;
+    padding:8px 20px 12px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    gap:12px;
+    scrollbar-width:thin;
+    scrollbar-color:#333 transparent;
+  }
+  #feed::-webkit-scrollbar{width:5px;}
+  #feed::-webkit-scrollbar-thumb{background:#2a2a2a; border-radius:3px;}
+
+  #empty{
+    color:#555;
+    font-size:13px;
+    text-align:center;
+    margin-top:60px;
+    display:none;
+  }
+
+  .card{
+    width:350px;
+    max-width:100%;
+    height:200px;
+    flex-shrink:0;
+    background:var(--card-bg);
+    border-radius:14px;
+    padding:16px 18px;
+    display:flex;
+    flex-direction:column;
+    cursor:pointer;
+    border:1px solid var(--border);
+    animation:pop .28s ease;
+    transition:transform .12s ease, border-color .12s ease;
+  }
+  .card:active{transform:scale(0.98);}
+  @keyframes pop{
+    from{opacity:0; transform:translateY(-8px) scale(0.98);}
+    to{opacity:1; transform:translateY(0) scale(1);}
+  }
+
+  .card-title{
+    font-size:16px;
+    font-weight:700;
+    color:var(--title-color);
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    margin-bottom:8px;
+  }
+
+  .card-nick{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    font-size:12px;
+    font-weight:600;
+    color:var(--accent);
+    margin-bottom:10px;
+    width:fit-content;
+  }
+  .card-nick:active{opacity:0.6;}
+
+  .card-body{
+    font-size:13px;
+    line-height:1.5;
+    color:var(--body-color);
+    display:-webkit-box;
+    -webkit-line-clamp:3;
+    -webkit-box-orient:vertical;
+    overflow:hidden;
+    flex:1;
+  }
+
+  .card-tags{
+    display:flex;
+    gap:6px;
+    margin-top:10px;
+    flex-wrap:wrap;
+  }
+  .tag{
+    font-size:10.5px;
+    font-weight:600;
+    color:#bbb;
+    background:#1e1e1e;
+    padding:4px 9px;
+    border-radius:20px;
+  }
+
+  #composeBtn{
+    flex-shrink:0;
+    margin:10px auto 18px;
+    width:350px;
+    max-width:calc(100% - 40px);
+    height:52px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:26px;
+    font-family:inherit;
+    font-size:16px;
+    font-weight:700;
+    cursor:pointer;
+  }
+  #composeBtn:active{opacity:0.85;}
+
+  /* Modal shared */
+  .overlay{
+    position:fixed; inset:0;
+    background:#000;
+    z-index:50;
+    display:none;
+    flex-direction:column;
+    overflow-y:auto;
+  }
+  .overlay.open{display:flex;}
+  .modal-inner{
+    max-width:390px;
+    width:100%;
+    margin:0 auto;
+    padding:20px 20px 40px;
+    flex:1;
+  }
+  .modal-topbar{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:6px 0 18px;
+  }
+  .modal-topbar span{font-size:17px; font-weight:700; color:#fff;}
+  .closeBtn{
+    background:#1c1c1e;
+    border:none;
+    color:#bbb;
+    width:32px; height:32px;
+    border-radius:50%;
+    font-size:16px;
+    cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+
+  .field{margin-bottom:18px;}
+  .field label{
+    display:block;
+    font-size:13px;
+    font-weight:700;
+    color:#fff;
+    margin-bottom:8px;
+  }
+  .field label .opt{
+    color:#666;
+    font-weight:500;
+    font-size:11.5px;
+    margin-left:4px;
+  }
+  .bar-input{
+    width:100%;
+    background:var(--card-bg);
+    border:1px solid var(--border);
+    border-radius:12px;
+    padding:14px 16px;
+    color:#fff;
+    font-family:inherit;
+    font-size:14.5px;
+    outline:none;
+  }
+  .bar-input::placeholder{color:#555;}
+  .bar-input:focus{border-color:#3a3a3a;}
+
+  .pref-label{
+    font-size:13px;
+    font-weight:700;
+    color:#fff;
+    margin-bottom:10px;
+  }
+  .pref-row{
+    display:flex;
+    justify-content:flex-end;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-bottom:26px;
+  }
+  .pref-pill{
+    background:var(--pill-gray);
+    color:#ccc;
+    border:1px solid transparent;
+    border-radius:20px;
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:600;
+    font-family:inherit;
+    cursor:pointer;
+  }
+  .pref-pill.active{
+    background:var(--pill-gray-active);
+    color:#fff;
+    border-color:#666;
+  }
+
+  #submitBtn{
+    width:100%;
+    height:54px;
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:16px;
+    font-family:inherit;
+    font-size:16px;
+    font-weight:700;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  #submitBtn:disabled{
+    background:#1c1c1e;
+    color:#555;
+    cursor:not-allowed;
+  }
+  .err{
+    color:#ff5b5b;
+    font-size:12px;
+    margin-top:-10px;
+    margin-bottom:14px;
+    display:none;
+  }
+
+  /* Detail modal */
+  .detail-title{
+    font-size:20px;
+    font-weight:700;
+    color:#fff;
+    margin-bottom:6px;
+  }
+  .detail-time{
+    font-size:12px;
+    color:#666;
+    margin-bottom:20px;
+  }
+  .detail-block{
+    background:var(--card-bg);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:16px 18px;
+    margin-bottom:14px;
+  }
+  .detail-block .k{
+    font-size:11.5px;
+    font-weight:700;
+    color:#666;
+    margin-bottom:6px;
+    letter-spacing:0.2px;
+  }
+  .detail-block .v{
+    font-size:14.5px;
+    color:#e6e6e6;
+    line-height:1.5;
+    word-break:break-word;
+  }
+  .detail-block .v.link{
+    color:var(--accent);
+    font-weight:700;
+    cursor:pointer;
+  }
+  .detail-tags{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-top:4px;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <h1>실시간 거래 게시판</h1>
+    <p>최신 글이 맨 위에 표시돼요 · 최대 100개</p>
+  </header>
+
+  <div id="feed">
+    <div id="empty">아직 올라온 글이 없어요.<br>첫 글을 남겨보세요.</div>
+  </div>
+
+  <button id="composeBtn">글 쓰기</button>
+
+  <!-- Compose Modal -->
+  <div class="overlay" id="composeOverlay">
+    <div class="modal-inner">
+      <div class="modal-topbar">
+        <span>글 쓰기</span>
+        <button class="closeBtn" id="closeCompose">✕</button>
+      </div>
+
+      <div class="field">
+        <label>제목</label>
+        <input class="bar-input" id="inTitle" placeholder="입력하세요." maxlength="40">
+      </div>
+
+      <div class="field">
+        <label>로블록스 닉네임</label>
+        <input class="bar-input" id="inNick" placeholder="입력하세요." maxlength="30">
+      </div>
+
+      <div class="field">
+        <label>내가 가진 아이템</label>
+        <input class="bar-input" id="inHave" placeholder="입력하세요." maxlength="60">
+      </div>
+
+      <div class="field">
+        <label>내가 원하는 아이템 <span class="opt">(선택)</span></label>
+        <input class="bar-input" id="inWant" placeholder="입력하세요." maxlength="60">
+      </div>
+
+      <div class="pref-label">선호 사항 <span class="opt" style="font-weight:500;">(선택, 중복 가능)</span></div>
+      <div class="pref-row" id="prefRow">
+        <button type="button" class="pref-pill" data-pref="쪼개기">쪼개기</button>
+        <button type="button" class="pref-pill" data-pref="쪼개지 않음">쪼개지 않음</button>
+        <button type="button" class="pref-pill" data-pref="득거">득거</button>
+        <button type="button" class="pref-pill" data-pref="손거">손거</button>
+      </div>
+
+      <div class="err" id="errMsg">제목, 닉네임, 가진 아이템은 필수예요.</div>
+      <button id="submitBtn">글쓰기</button>
+    </div>
+  </div>
+
+  <!-- Detail Modal -->
+  <div class="overlay" id="detailOverlay">
+    <div class="modal-inner">
+      <div class="modal-topbar">
+        <span>글 상세</span>
+        <button class="closeBtn" id="closeDetail">✕</button>
+      </div>
+      <div id="detailContent"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const STORAGE_KEY = 'trade-board-posts';
+  const MAX_POSTS = 100;
+  const POLL_MS = 3000;
+
+  const feed = document.getElementById('feed');
+  const empty = document.getElementById('empty');
+  const composeOverlay = document.getElementById('composeOverlay');
+  const detailOverlay = document.getElementById('detailOverlay');
+  const detailContent = document.getElementById('detailContent');
+
+  let posts = [];
+  let lastSnapshot = '';
+  let selectedPrefs = new Set();
+
+  // ---------- 욕설/혐오표현 필터 ----------
+  const BAD_WORDS = [
+    '시발','씨발','씨1발','ㅅㅂ','ㅆㅂ','병신','ㅂㅅ','좆','존나','개새끼','개색기',
+    '지랄','미친놈','미친년','창녀','걸레','fuck','shit','bitch','asshole','nigger',
+    '자살해','뒤져','죽어라','한남','한녀','틀딱','급식충','장애인같','병1신'
+  ];
+  function filterBadWords(text){
+    let result = text;
+    BAD_WORDS.forEach(w=>{
+      if(!w) return;
+      const re = new RegExp(w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'gi');
+      result = result.replace(re, m => '*'.repeat(m.length));
+    });
+    return result;
+  }
+
+  function escapeHtml(str){
+    return String(str)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function robloxLink(nickname){
+    return 'https://www.roblox.com/search/users?keyword=' + encodeURIComponent(nickname);
+  }
+
+  function timeAgo(ts){
+    const diff = Math.floor((Date.now() - ts) / 1000);
+    if(diff < 60) return '방금 전';
+    if(diff < 3600) return Math.floor(diff/60) + '분 전';
+    if(diff < 86400) return Math.floor(diff/3600) + '시간 전';
+    return Math.floor(diff/86400) + '일 전';
+  }
+
+  // ---------- 저장 / 불러오기 ----------
+  async function loadPosts(){
+    try{
+      const res = await window.storage.get(STORAGE_KEY, true);
+      return res && res.value ? JSON.parse(res.value) : [];
+    }catch(e){
+      return [];
+    }
+  }
+
+  async function savePosts(list){
+    await window.storage.set(STORAGE_KEY, JSON.stringify(list), true);
+  }
+
+  async function refreshFromServer(force){
+    const list = await loadPosts();
+    const snap = JSON.stringify(list);
+    if(force || snap !== lastSnapshot){
+      lastSnapshot = snap;
+      posts = list;
+      render();
+    }
+  }
+
+  // ---------- 렌더링 ----------
+  function render(){
+    feed.querySelectorAll('.card').forEach(el => el.remove());
+    empty.style.display = posts.length === 0 ? 'block' : 'none';
+
+    posts.slice(0, MAX_POSTS).forEach(post => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.addEventListener('click', () => openDetail(post));
+
+      const bodyText = `가진 아이템: ${post.have}` + (post.want ? `\n원하는 아이템: ${post.want}` : '\n원하는 아이템: 자유');
+
+      card.innerHTML = `
+        <div class="card-title">${escapeHtml(post.title)}</div>
+        <div class="card-nick" data-nick="1">🔗 ${escapeHtml(post.nick)}</div>
+        <div class="card-body">${escapeHtml(bodyText)}</div>
+        ${post.prefs && post.prefs.length ? `<div class="card-tags">${post.prefs.map(p=>`<span class="tag">${escapeHtml(p)}</span>`).join('')}</div>` : ''}
+      `;
+
+      const nickEl = card.querySelector('[data-nick]');
+      nickEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        window.open(robloxLink(post.nick), '_blank');
+      });
+
+      feed.appendChild(card);
+    });
+  }
+
+  function openDetail(post){
+    detailContent.innerHTML = `
+      <div class="detail-title">${escapeHtml(post.title)}</div>
+      <div class="detail-time">${timeAgo(post.ts)}</div>
+
+      <div class="detail-block">
+        <div class="k">로블록스 닉네임</div>
+        <div class="v link" id="detailNickLink">${escapeHtml(post.nick)} ↗</div>
+      </div>
+
+      <div class="detail-block">
+        <div class="k">내가 가진 아이템</div>
+        <div class="v">${escapeHtml(post.have)}</div>
+      </div>
+
+      <div class="detail-block">
+        <div class="k">내가 원하는 아이템</div>
+        <div class="v">${post.want ? escapeHtml(post.want) : '자유 (무엇이든 좋아요)'}</div>
+      </div>
+
+      ${post.prefs && post.prefs.length ? `
+      <div class="detail-block">
+        <div class="k">선호 사항</div>
+        <div class="detail-tags">${post.prefs.map(p=>`<span class="tag">${escapeHtml(p)}</span>`).join('')}</div>
+      </div>` : ''}
+    `;
+    document.getElementById('detailNickLink').addEventListener('click', () => {
+      window.open(robloxLink(post.nick), '_blank');
+    });
+    detailOverlay.classList.add('open');
+  }
+
+  // ---------- Compose 모달 ----------
+  function resetForm(){
+    document.getElementById('inTitle').value = '';
+    document.getElementById('inNick').value = '';
+    document.getElementById('inHave').value = '';
+    document.getElementById('inWant').value = '';
+    selectedPrefs.clear();
+    document.querySelectorAll('.pref-pill').forEach(b => b.classList.remove('active'));
+    document.getElementById('errMsg').style.display = 'none';
+  }
+
+  document.getElementById('composeBtn').addEventListener('click', () => {
+    resetForm();
+    composeOverlay.classList.add('open');
+  });
+  document.getElementById('closeCompose').addEventListener('click', () => {
+    composeOverlay.classList.remove('open');
+  });
+  document.getElementById('closeDetail').addEventListener('click', () => {
+    detailOverlay.classList.remove('open');
+  });
+
+  document.querySelectorAll('.pref-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const p = btn.dataset.pref;
+      if(selectedPrefs.has(p)){
+        selectedPrefs.delete(p);
+        btn.classList.remove('active');
+      }else{
+        selectedPrefs.add(p);
+        btn.classList.add('active');
+      }
+    });
+  });
+
+  document.getElementById('submitBtn').addEventListener('click', async () => {
+    const titleRaw = document.getElementById('inTitle').value.trim();
+    const nickRaw = document.getElementById('inNick').value.trim();
+    const haveRaw = document.getElementById('inHave').value.trim();
+    const wantRaw = document.getElementById('inWant').value.trim();
+    const errMsg = document.getElementById('errMsg');
+
+    if(!titleRaw || !nickRaw || !haveRaw){
+      errMsg.style.display = 'block';
+      return;
+    }
+    errMsg.style.display = 'none';
+
+    const btn = document.getElementById('submitBtn');
+    btn.disabled = true;
+    btn.textContent = '올리는 중...';
+
+    const post = {
+      id: Date.now() + '-' + Math.random().toString(36).slice(2,8),
+      title: filterBadWords(titleRaw),
+      nick: filterBadWords(nickRaw),
+      have: filterBadWords(haveRaw),
+      want: wantRaw ? filterBadWords(wantRaw) : '',
+      prefs: Array.from(selectedPrefs),
+      ts: Date.now()
+    };
+
+    try{
+      const latest = await loadPosts();
+      latest.unshift(post);
+      const trimmed = latest.slice(0, MAX_POSTS);
+      await savePosts(trimmed);
+      posts = trimmed;
+      lastSnapshot = JSON.stringify(trimmed);
+      render();
+      composeOverlay.classList.remove('open');
+    }catch(e){
+      errMsg.textContent = '전송에 실패했어요. 다시 시도해주세요.';
+      errMsg.style.display = 'block';
+    }finally{
+      btn.disabled = false;
+      btn.textContent = '글쓰기';
+    }
+  });
+
+  // ---------- 초기화 + 실시간 폴링 ----------
+  refreshFromServer(true);
+  setInterval(() => refreshFromServer(false), POLL_MS);
+})();
+</script>
+</body>
+</html>
